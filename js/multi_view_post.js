@@ -6,10 +6,9 @@ import { FlyControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/
 import { GUI } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/libs/dat.gui.module.js';
 import { FisheyeShader } from './Fisheye_kb.js'
 
-let scene, renderer;
+let renderer;
 let controls;
 const clock = new THREE.Clock();
-let cam_composers = [];
 
 const fs = require('fs');
 const path = require('path');
@@ -35,47 +34,53 @@ let h_fov = 150.0;
 const v_fov = Math.atan(Math.tan(h_fov / 360.0 * 3.1415927) * 3.0 / 4.0) * 360.0 / 3.1415927
 
 const params = {
-  eyes:{
+  scenes: {
+    room_size:{
+      'width' : 3, 'height' : 3, 'depth' : 3
+    },
+    current: 'room',
+    env:{}
+  },
+  eyes: {
     nums: 2,
     'IPD(m)': 0.06,
     'fov': 90.0,
     cams: []
   },
-  side_cams:{
+  side_cams: {
     nums: 4,
-    cams:[],
-    composers:[]
+    cams: [],
+    rot2track: [],
+    trans2track: [],
+    composers: []
   }
 };
 
-// const cams = [
-//   {
-//     background: new THREE.Color(0.7, 0.5, 0.5),
-//     eye: [0, 0.9, 0],
-//     up: [0, 0, 1]
-//   },
-//   {
-//     background: new THREE.Color(0.7, 0.5, 0.5),
-//     eye: [0, 0.0, 0],
-//     up: [0, 0, 1]
-//   },
-//   {
-//     background: new THREE.Color(0.5, 0.5, 0.5),
-//     eye: [0.1, 0.9, 0],
-//     up: [0, 0, 1]
-//   },
-//   {
-//     background: new THREE.Color(0.6, 0.5, 0.5),
-//     eye: [0, 0.9, 0.1],
-//     up: [0, 0, 1]
-//   }
-// ];
-
 document.addEventListener('DOMContentLoaded', function () {
   if (!Detector.webgl) Detector.addGetWebGLMessage();
+  loadParams();
   init();
   animate();
 });
+
+function loadParams(){
+  for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+    const T_track_cam = new THREE.Matrix4();
+    T_track_cam.fromArray(camera_data["cam" + ii]);
+    T_track_cam.transpose();
+    T_track_cam.elements[12] /= 1000.0;
+    T_track_cam.elements[13] /= 1000.0;
+    T_track_cam.elements[14] /= 1000.0;
+    
+    const quaternion = new THREE.Quaternion();
+    const translation = new THREE.Vector3();
+    translation.setFromMatrixPosition(T_track_cam);
+    quaternion.setFromRotationMatrix(T_track_cam);
+    params['side_cams']['rot2track'].push(quaternion);
+    params['side_cams']['trans2track'].push(translation);
+  }
+
+}
 
 function init() {
 
@@ -105,36 +110,39 @@ function init() {
   // add cams
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
     const camera = new THREE.PerspectiveCamera(v_fov, CAM_RATIO, 0.05, 10);
-    const m = new THREE.Matrix4();
-    m.fromArray(camera_data["cam"+ii]);
-    m.transpose();
-    m.elements[12] /= 1000.0;
-    m.elements[13] /= 1000.0;
-    m.elements[14] /= 1000.0;
-    camera.applyMatrix4(m);
+    camera.quaternion.copy(params['side_cams']['rot2track'][ii]);
+    camera.position.copy(params['side_cams']['trans2track'][ii]);
     tracking_ref.attach(camera);
     params['side_cams']['cams'].push(camera);
   }
 
-  const matChanger = function ( ) {
+  const eyeChanger = function () {
     for (let ii = 0; ii < params['eyes']['cams'].length; ++ii) {
       const camera = params['eyes']['cams'][ii];
-      camera.position.x = params['eyes']['IPD(m)']*(ii-0.5);
+      camera.position.x = params['eyes']['IPD(m)'] * (ii - 0.5);
       camera.fov = params['eyes']['fov'];
     }
   };
 
-  // GUI
-  const gui = new GUI();
-  const eye_param = gui.addFolder( 'eyes' );
-  eye_param.add( params.eyes, 'IPD(m)', 0.05, 0.075, 0.001 ).onChange( matChanger );
-  eye_param.add( params.eyes, 'fov', 80.0, 100.0, 0.5 ).onChange( matChanger );
-  eye_param.open();
+  const sceneSizeChanger = function () {
+    params.scenes['env'][params.scenes['current']].children[0].scale.x = params.scenes['room_size']['width'];
+    params.scenes['env'][params.scenes['current']].children[0].scale.y = params.scenes['room_size']['height'];
+    params.scenes['env'][params.scenes['current']].children[0].scale.z = params.scenes['room_size']['depth'];
+  };
 
-  scene = new THREE.Scene();
+  const sceneEnvChanger = function(){
+    for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+      params['side_cams']['composers'][ii].passes[0] = new RenderPass(params.scenes['env'][params.scenes['current']], params['side_cams']['cams'][ii]);
+    }
+    tracking_ref.position.set(0, 0, 0);
+    tracking_ref.quaternion.identity();
+  }
+
+
+  const scene = new THREE.Scene();
 
   // setup room
-  let geometrycc = new THREE.BoxGeometry(3, 3, 3);
+  let geometrycc = new THREE.BoxGeometry(1, 1, 1);
   const roomColors = ['green', 'red', 'magenta', 'yellow', 'teal', 'blue'];
   var colorcc = [];
   for (let i = 0; i < roomColors.length; i++) {
@@ -155,6 +163,41 @@ function init() {
   const light = new THREE.DirectionalLight(0xffffff);
   light.position.set(0, 0, 1);
   scene.add(light);
+  params.scenes['env']['room'] = scene.clone();
+
+  const radius = 0.2;
+  const geometry1 = new THREE.IcosahedronGeometry(radius, 1);
+  const count = geometry1.attributes.position.count;
+  geometry1.setAttribute('color', new THREE.BufferAttribute(new Float32Array(count * 3), 3));
+  const color = new THREE.Color();
+  const positions1 = geometry1.attributes.position;
+  const colors1 = geometry1.attributes.color;
+
+  for (let i = 0; i < count; i++) {
+    color.setHSL((positions1.getY(i) / radius + 1) / 2, 1.0, 0.5);
+    colors1.setXYZ(i, color.r, color.g, color.b);
+  }
+
+  const material = new THREE.MeshPhongMaterial({
+    color: 0xffffff,
+    flatShading: true,
+    vertexColors: true,
+    shininess: 0
+  });
+
+  const wireframeMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, wireframe: true, transparent: true });
+
+  let mesh = new THREE.Mesh(geometry1, material);
+  let wireframe = new THREE.Mesh(geometry1, wireframeMaterial);
+  mesh.add(wireframe);
+  scene.add(mesh);
+  // mesh.position.x = - 0.5;
+  // mesh.rotation.x = - 1.87;
+  const light2 = new THREE.DirectionalLight(0xffffff);
+  light2.position.set(0, 1, 1);
+  scene.add(light2);
+  params.scenes['env']['room2'] = scene;
+  sceneSizeChanger();
 
   // add renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -164,13 +207,36 @@ function init() {
 
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
     let composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, params['side_cams']['cams'][ii]));
+    composer.addPass(new RenderPass(params.scenes['env'][params.scenes['current']], params['side_cams']['cams'][ii]));
     let effect1 = new ShaderPass(FisheyeShader);
     composer.addPass(effect1);
     params['side_cams']['composers'].push(composer);
-      // var glitchPass = new GlitchPass();
-      // composer.addPass( glitchPass );
+    // var glitchPass = new GlitchPass();
+    // composer.addPass( glitchPass );
+    // if(ii === 0){
+    //   const helper = new THREE.CameraHelper( params['side_cams']['cams'][ii] );
+    //   scene.add( helper );
+    // }
   }
+  // current_scene = scene;
+
+  // GUI
+  const gui = new GUI();
+  const scene_param = gui.addFolder('Scenes');
+  scene_param.add( params.scenes, 'current', Object.keys( params.scenes['env'] ) ).onChange( sceneEnvChanger );;
+  const scene_size_param = scene_param.addFolder('size');
+  scene_size_param.add( params.scenes['room_size'], 'width', 1.5, 7.0, 0.1 ).onChange( sceneSizeChanger );
+  scene_size_param.add( params.scenes['room_size'], 'height', 1.5, 7.0, 0.1 ).onChange( sceneSizeChanger );
+  scene_size_param.add( params.scenes['room_size'], 'depth', 1.5, 7.0, 0.1 ).onChange( sceneSizeChanger );
+  scene_param.open();
+  const eye_param = gui.addFolder('Eyes');
+  eye_param.add(params.eyes, 'IPD(m)', 0.05, 0.075, 0.001).onChange(eyeChanger).listen();
+  eye_param.add(params.eyes, 'fov', 80.0, 100.0, 0.5).onChange(eyeChanger);
+  eye_param.open();
+  const side_param = gui.addFolder('Cameras');
+  side_param.add(params.eyes, 'IPD(m)', 0.05, 0.075, 0.001).onChange(eyeChanger).listen();
+  side_param.add(params.eyes, 'fov', 80.0, 100.0, 0.5).onChange(eyeChanger);
+  side_param.open();
 
   // add renderer to container
   container.appendChild(renderer.domElement);
@@ -179,7 +245,7 @@ function init() {
   // fly control
   controls = new FlyControls(tracking_ref, renderer.domElement);
 
-  controls.movementSpeed = 0.5;
+  controls.movementSpeed = 1.0;
   controls.domElement = container;
   controls.rollSpeed = Math.PI / 3;
   controls.autoForward = false;
@@ -227,15 +293,15 @@ function render() {
 
   const delta = clock.getDelta();
 
-  controls.update( delta );
+  controls.update(delta);
   // updateSize();
   // updateTrackingRef();
   tracking_ref.updateMatrixWorld();
   for (let ii = 0; ii < params['eyes']['cams'].length; ++ii) {
-  
+
     const camera = params['eyes']['cams'][ii];
 
-    const left = Math.floor(EYE_W *ii);
+    const left = Math.floor(EYE_W * ii);
     const bottom = Math.floor(CAM_H);
     const width = Math.floor(EYE_W);
     let height = Math.floor(EYE_H);
@@ -248,7 +314,8 @@ function render() {
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
 
-    renderer.render(scene, camera);
+    renderer.render(params.scenes['env'][params.scenes['current']], camera);
+    // renderer.render(scene, camera);
 
   }
 
@@ -256,7 +323,7 @@ function render() {
 
     const camera = params['side_cams']['cams'][ii];
 
-    const left = Math.floor(CAM_W *ii);
+    const left = Math.floor(CAM_W * ii);
     const bottom = Math.floor(0);
     const width = Math.floor(CAM_W);
     let height = Math.floor(CAM_H);
