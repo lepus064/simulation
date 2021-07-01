@@ -2,7 +2,7 @@ const FisheyeShader = {
 
 	uniforms: {
     "tDiffuse": 		{ type: "t", value: null },
-    "h_fov": 		{ type: "f", value: 150.0 },
+    "h_fov": 		{ type: "f", value: 151.0 },
     "aspectRatio":		{ type: "f", value: 4.0/3.0 },
 	},
 

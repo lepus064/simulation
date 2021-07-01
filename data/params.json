@@ -1,0 +1,25 @@
+{
+  "scenes": {
+    "room_size": {
+      "width": 3, "height": 3, "depth": 3
+    },
+    "current": "room",
+    "env": {}
+  },
+  "eyes": {
+    "nums": 2,
+    "IPD(m)": 0.06,
+    "fov": 90.0,
+    "cams": []
+  },
+  "side_cams": {
+    "nums": 4,
+    "cams": [],
+    "rot2track": [],
+    "trans2track": [],
+    "composers": [],
+    "ratio_w": 4.0,
+    "ratio_h": 3.0,
+    "h_fov": 151.0
+  }
+}
