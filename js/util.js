@@ -39,6 +39,8 @@ function createColorRoom() {
   });
   const cubecc = new THREE.Mesh(geometrycc, materialcc);
   scene.add(cubecc);
+  const light = new THREE.AmbientLight( 0x404040 ); // soft white light
+  scene.add( light, 1.5 );
   return scene;
 }
 

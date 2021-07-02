@@ -1,4 +1,7 @@
 {
+  "showInfo": true,
+  "current_main_view": "eye",
+  "main_view": {"eye": 0, "global": 1},
   "scenes": {
     "room_size": {
       "width": 3, "height": 3, "depth": 3
@@ -20,6 +23,8 @@
     "composers": [],
     "ratio_w": 4.0,
     "ratio_h": 3.0,
-    "h_fov": 151.0
+    "h_fov": 151.0,
+    "symmetry01": true,
+    "symmetry23": true
   }
 }

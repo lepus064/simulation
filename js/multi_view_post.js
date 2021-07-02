@@ -3,12 +3,15 @@ import { EffectComposer } from 'https://cdn.skypack.dev/three@0.129.0/examples/j
 import { RenderPass } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/postprocessing/RenderPass.js';
 import { ShaderPass } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/postprocessing/ShaderPass.js';
 import { FlyControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/FlyControls.js';
+import { OrbitControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js';
+import { PLYLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/PLYLoader.js';
 import { GUI } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/libs/dat.gui.module.js';
 import { FisheyeShader } from './Fisheye_kb.js'
 import * as util from './util.js'
 
 let renderer;
-let controls;
+let controls, o_controls;
+
 const clock = new THREE.Clock();
 
 const fs = require('fs');
@@ -39,6 +42,8 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 function init() {
+  // get info
+  const displayInfo = document.getElementById('info');
 
   // get container
   const container = document.getElementById('mainDrawing');
@@ -72,6 +77,20 @@ function init() {
     tracking_ref.attach(camera);
     params['side_cams']['cams'].push(camera);
   }
+  params['global_cam'] = new THREE.PerspectiveCamera(90, EYE_RATIO * 2, 0.001, 5);
+  params['global_cam'].position.set(0, 0, -0.2);
+  params['global_cam'].lookAt(0, 0, 0);
+  tracking_ref.attach(params['global_cam']);
+
+
+  const showInfoChanger = function () {
+    if (params["showInfo"]) {
+      displayInfo.style.display = "block";
+    }
+    else {
+      displayInfo.style.display = "none";
+    }
+  }
 
   const eyeChanger = function () {
     for (let ii = 0; ii < params['eyes']['cams'].length; ++ii) {
@@ -91,28 +110,119 @@ function init() {
     for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
       params['side_cams']['composers'][ii].passes[0] = new RenderPass(params.scenes['env'][params.scenes['current']], params['side_cams']['cams'][ii]);
     }
-    if(params.scenes['current'] === 'real'){
+    if (params.scenes['current'] === 'real') {
       scene_size_param.hide();
     }
-    else{
+    else {
       scene_size_param.show();
     }
     tracking_ref.position.set(0, 0, 0);
     tracking_ref.quaternion.identity();
   }
 
+  const mainViewChanger = function () {
+    controls.dispose();
+    if (params["current_main_view"] === "eye") {
+      // fly control
+      controls = new FlyControls(tracking_ref, renderer.domElement);
+
+      controls.movementSpeed = 1.0;
+      controls.domElement = container;
+      controls.rollSpeed = Math.PI / 3;
+      controls.autoForward = false;
+      controls.dragToLook = true;
+      params["showInfo"] = true;
+    }
+    else {
+      controls = new OrbitControls(params['global_cam'], renderer.domElement);
+      // controls.listenToKeyEvents( window );
+      controls.enableDamping = true; // an animation loop is required when either damping or auto-rotation are enabled
+      controls.dampingFactor = 0.05;
+
+      controls.screenSpacePanning = false;
+
+      controls.minDistance = 0.1;
+      controls.maxDistance = 2;
+
+      controls.maxPolarAngle = Math.PI;
+      params["showInfo"] = false;
+    }
+    sceneEnvChanger();
+    showInfoChanger();
+  }
+
   const sideCamChanger = function () {
+    if (params['side_cams']["symmetry01"]) {
+      cam_params[1].hide();
+    }
+    else {
+      cam_params[1].show();
+    }
+    if (params['side_cams']["symmetry23"]) {
+      cam_params[3].hide();
+    }
+    else {
+      cam_params[3].show();
+    }
     for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
       const camera = params['side_cams']['cams'][ii];
       const v_fov = getVerticalFov(params['side_cams']['h_fov'], CAM_RATIO);
       camera.fov = v_fov;
       params['side_cams']['composers'][ii].passes[1].uniforms['h_fov'].value = params['side_cams']['h_fov'];
+      params['side_cams']['rot2track'][ii].normalize();
+      // extrinsic
+      if (ii === 0 && params['side_cams']["symmetry01"]) {
+        params['side_cams']['trans2track'][1].copy(params['side_cams']['trans2track'][0])
+        params['side_cams']['trans2track'][1].x *= -1;
+        params['side_cams']['rot2track'][1].w = -params['side_cams']['rot2track'][0].z;
+        params['side_cams']['rot2track'][1].z = -params['side_cams']['rot2track'][0].w;
+        params['side_cams']['rot2track'][1].x = params['side_cams']['rot2track'][0].y;
+        params['side_cams']['rot2track'][1].y = params['side_cams']['rot2track'][0].x;
+      }
+      if (ii === 2 && params['side_cams']["symmetry23"]) {
+        params['side_cams']['trans2track'][3].copy(params['side_cams']['trans2track'][2])
+        params['side_cams']['trans2track'][3].x *= -1;
+        params['side_cams']['rot2track'][3].w = params['side_cams']['rot2track'][2].z;
+        params['side_cams']['rot2track'][3].z = params['side_cams']['rot2track'][2].w;
+        params['side_cams']['rot2track'][3].x = -params['side_cams']['rot2track'][2].y;
+        params['side_cams']['rot2track'][3].y = -params['side_cams']['rot2track'][2].x;
+      }
       camera.position.copy(params['side_cams']['trans2track'][ii]);
+      camera.quaternion.copy(params['side_cams']['rot2track'][ii]);
     }
   }
 
+  params.scenes['env']['room'] = util.createColorRoom();
 
   const scene = new THREE.Scene();
+  const loader = new PLYLoader();
+  loader.load('./data/out50cm.ply', function (geometry) {
+
+    geometry.computeVertexNormals();
+    const vx180 = new THREE.Vector3( 1, 0, 0 );
+    const qx180 = new THREE.Quaternion();
+    qx180.setFromAxisAngle(vx180, 3.1415927);
+    geometry.applyQuaternion(qx180);
+
+    const m_colors = ['red', 'blue', 'yellow', 'green']
+    for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+      const material = new THREE.MeshStandardMaterial({ color: m_colors[ii], flatShading: true, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.scale.multiplyScalar(0.001 * 0.01);
+
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.onBeforeRender = function () {
+        this.position.copy(params['side_cams']['cams'][ii].position);
+        this.quaternion.copy(params['side_cams']['cams'][ii].quaternion);
+      };
+      // m.parent = params['side_cams']['cams'][ii];
+      // .attach(m);
+      params.scenes['env']['room'].add(mesh);
+    }
+    scene.add(mesh);
+
+  });
 
   // setup room
   let geometrycc = new THREE.BoxGeometry(1, 1, 1);
@@ -133,10 +243,9 @@ function init() {
   const cubecc = new THREE.Mesh(geometrycc, materialcc);
   scene.add(cubecc);
 
-  // const light = new THREE.DirectionalLight(0xffffff);
-  // light.position.set(0, 0, 1);
-  // scene.add(light);
-  params.scenes['env']['room'] = util.createColorRoom();
+  const light = new THREE.DirectionalLight(0xffffff);
+  light.position.set(0, 0, 1);
+  scene.add(light);
 
   const radius = 0.2;
   const geometry1 = new THREE.IcosahedronGeometry(radius, 1);
@@ -197,20 +306,40 @@ function init() {
 
   // GUI
   const gui = new GUI();
+  gui.width = 350;
+  console.log(gui.width);
+  gui.add(params, "showInfo").name("show info").onChange(showInfoChanger).listen();
+  gui.add(params, "current_main_view", Object.keys(params["main_view"])).onChange(mainViewChanger);;
   const scene_param = gui.addFolder('Scenes');
   scene_param.add(params.scenes, 'current', Object.keys(params.scenes['env'])).onChange(sceneEnvChanger);;
   const scene_size_param = scene_param.addFolder('room size');
-  scene_size_param.add(params.scenes['room_size'], 'width', 1.5, 7.0, 0.1).onChange(sceneSizeChanger);
-  scene_size_param.add(params.scenes['room_size'], 'height', 1.5, 7.0, 0.1).onChange(sceneSizeChanger);
-  scene_size_param.add(params.scenes['room_size'], 'depth', 1.5, 7.0, 0.1).onChange(sceneSizeChanger);
+  scene_size_param.add(params.scenes['room_size'], 'width', 1.5, 7.0, 0.1).name("width(m)").onChange(sceneSizeChanger);
+  scene_size_param.add(params.scenes['room_size'], 'height', 1.5, 7.0, 0.1).name("height(m)").onChange(sceneSizeChanger);
+  scene_size_param.add(params.scenes['room_size'], 'depth', 1.5, 7.0, 0.1).name("depth(m)").onChange(sceneSizeChanger);
   scene_param.open();
   const eye_param = gui.addFolder('Eyes');
   eye_param.add(params.eyes, 'IPD(m)', 0.05, 0.075, 0.001).onChange(eyeChanger).listen();
-  eye_param.add(params.eyes, 'fov', 80.0, 100.0, 0.5).onChange(eyeChanger);
+  eye_param.add(params.eyes, 'fov', 80.0, 100.0, 0.5).name("V fov(deg)").onChange(eyeChanger);
   eye_param.open();
   const side_param = gui.addFolder('Cameras');
-  side_param.add(params.side_cams, 'h_fov', 120.0, 170.0, 0.5).onChange(sideCamChanger);
-  side_param.add(params.side_cams['trans2track'][0], "x", -0.6, -0.04, 0.001).name("x").onChange(sideCamChanger);
+  const side_general_param = side_param.addFolder("general");
+  side_general_param.add(params.side_cams, 'h_fov', 120.0, 170.0, 0.5).name("H fov(deg)").onChange(sideCamChanger);
+  side_general_param.add(params.side_cams, "symmetry01").name("symmetry cam0 cam1").onChange(sideCamChanger);
+  side_general_param.add(params.side_cams, "symmetry23").name("symmetry cam2 cam3").onChange(sideCamChanger);
+  side_general_param.open();
+  const cam_params = []
+  for (let cam = 0; cam < 4; cam++) {
+    const cam_param = side_param.addFolder("cam" + cam);
+    cam_param.add(params.side_cams['trans2track'][cam], "x", -0.1, 0.1, 0.0001).name("x").onChange(sideCamChanger).listen();
+    cam_param.add(params.side_cams['trans2track'][cam], "y", -0.07, 0.07, 0.0001).name("y").onChange(sideCamChanger).listen();
+    cam_param.add(params.side_cams['trans2track'][cam], "z", -0.06, -0.01, 0.0001).name("z").onChange(sideCamChanger).listen();
+    cam_param.add(params.side_cams['rot2track'][cam], "w", -1, 1, 0.001).name("quaternion w").onChange(sideCamChanger).listen();
+    cam_param.add(params.side_cams['rot2track'][cam], "x", -1, 1, 0.001).name("quaternion x").onChange(sideCamChanger).listen();
+    cam_param.add(params.side_cams['rot2track'][cam], "y", -1, 1, 0.001).name("quaternion y").onChange(sideCamChanger).listen();
+    cam_param.add(params.side_cams['rot2track'][cam], "z", -1, 1, 0.001).name("quaternion z").onChange(sideCamChanger).listen();
+    cam_param.open();
+    cam_params.push(cam_param);
+  }
   side_param.open();
 
   // add renderer to container
@@ -230,6 +359,8 @@ function init() {
 
   window.addEventListener('resize', onWindowResize);
 
+  // make sure everything updated
+  sideCamChanger();
   // document.addEventListener('mousemove', onDocumentMouseMove);
 
 }
@@ -267,28 +398,45 @@ function animate() {
 function render() {
 
   const delta = clock.getDelta();
-
+  // controls.update();
   controls.update(delta);
   // updateSize();
   // updateTrackingRef();
   tracking_ref.updateMatrixWorld();
-  for (let ii = 0; ii < params['eyes']['cams'].length; ++ii) {
+  if (params["current_main_view"] === "eye") {
+    for (let ii = 0; ii < params['eyes']['cams'].length; ++ii) {
 
-    const camera = params['eyes']['cams'][ii];
+      const camera = params['eyes']['cams'][ii];
 
-    const left = Math.floor(EYE_W * ii);
+      const left = Math.floor(EYE_W * ii);
+      const bottom = Math.floor(CAM_H);
+      const width = Math.floor(EYE_W);
+      let height = Math.floor(EYE_H);
+
+      renderer.setViewport(left, bottom, width, height);
+      renderer.setScissor(left, bottom, width, height);
+      renderer.setScissorTest(true);
+      // renderer.setClearColor(view.background);
+
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+
+      renderer.render(params.scenes['env'][params.scenes['current']], camera);
+    }
+  }
+  else {
+    const camera = params['global_cam'];
+    const left = Math.floor(0);
     const bottom = Math.floor(CAM_H);
-    const width = Math.floor(EYE_W);
+    const width = Math.floor(2.0 * EYE_W);
     let height = Math.floor(EYE_H);
 
     renderer.setViewport(left, bottom, width, height);
     renderer.setScissor(left, bottom, width, height);
     renderer.setScissorTest(true);
-    // renderer.setClearColor(view.background);
 
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-
     renderer.render(params.scenes['env'][params.scenes['current']], camera);
   }
 

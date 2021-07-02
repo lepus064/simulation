@@ -27,10 +27,17 @@ body {
   width: 100vw;
   height: 100vh;
   text-align: center;
-  background-color: #849DAA;
+  /* background-color: #849DAA; */
   line-height: 1.5em;
   /* padding: 20px; */
   float: left;
+  }
+#info{
+  position: absolute;
+  width: 100vw;
+  height: 5vh;
+  text-align: center;
+  line-height: 1.5em;
   }
 
 .close {
