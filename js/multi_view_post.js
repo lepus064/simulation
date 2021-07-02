@@ -199,7 +199,7 @@ function init() {
   loader.load('./data/out50cm.ply', function (geometry) {
 
     geometry.computeVertexNormals();
-    const vx180 = new THREE.Vector3( 1, 0, 0 );
+    const vx180 = new THREE.Vector3(1, 0, 0);
     const qx180 = new THREE.Quaternion();
     qx180.setFromAxisAngle(vx180, 3.1415927);
     geometry.applyQuaternion(qx180);
