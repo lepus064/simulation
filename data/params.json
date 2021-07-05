@@ -6,6 +6,7 @@
     "room_size": {
       "width": 3, "height": 3, "depth": 3
     },
+    "sphere_radius": 0.3,
     "current1": "sphere",
     "current": "room",
     "env": {}

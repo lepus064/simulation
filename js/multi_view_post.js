@@ -101,23 +101,40 @@ function init() {
   };
 
   const sceneSizeChanger = function () {
-    params.scenes['env'][params.scenes['current']].children[0].scale.x = params.scenes['room_size']['width'];
-    params.scenes['env'][params.scenes['current']].children[0].scale.y = params.scenes['room_size']['height'];
-    params.scenes['env'][params.scenes['current']].children[0].scale.z = params.scenes['room_size']['depth'];
+    if (params.scenes['current'] == 'room') {
+      params.scenes['env'][params.scenes['current']].children[0].scale.x = params.scenes['room_size']['width'];
+      params.scenes['env'][params.scenes['current']].children[0].scale.y = params.scenes['room_size']['height'];
+      params.scenes['env'][params.scenes['current']].children[0].scale.z = params.scenes['room_size']['depth'];
+    }
+    if (params.scenes['current'] == 'sphere') {
+      params.scenes['env'][params.scenes['current']].children[0].scale.x = params.scenes['sphere_radius'];
+      params.scenes['env'][params.scenes['current']].children[0].scale.y = params.scenes['sphere_radius'];
+      params.scenes['env'][params.scenes['current']].children[0].scale.z = params.scenes['sphere_radius'];
+    }
   };
 
   const sceneEnvChanger = function () {
     for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
       params['side_cams']['composers'][ii].passes[0] = new RenderPass(params.scenes['env'][params.scenes['current']], params['side_cams']['cams'][ii]);
     }
-    if (params.scenes['current'] != 'room') {
+    if (params.scenes['current'] == 'room') {
+      scene_size_param.show();
+      sphere_param.hide();
+    }
+    else if (params.scenes['current'] == 'sphere') {
+      sphere_param.show();
       scene_size_param.hide();
+    if (params["current_main_view"] === "global") {
+        params['global_cam'].position.set(0, 0, 0.5);
+      }
     }
     else {
-      scene_size_param.show();
+      sphere_param.hide();
+      scene_size_param.hide();
     }
     tracking_ref.position.set(0, 0, 0);
     tracking_ref.quaternion.identity();
+    sceneSizeChanger();
   }
 
   const mainViewChanger = function () {
@@ -146,6 +163,9 @@ function init() {
 
       controls.maxPolarAngle = Math.PI;
       params["showInfo"] = false;
+      if (params.scenes['current'] == 'sphere') {
+        params['global_cam'].position.set(0, 0, 0.5);
+      }
     }
     sceneEnvChanger();
     showInfoChanger();
@@ -195,35 +215,9 @@ function init() {
   params.scenes['env']['room'] = util.createColorRoom();
 
   const scene = new THREE.Scene();
-  const loader = new PLYLoader();
-  loader.load('./data/out50cm.ply', function (geometry) {
 
-    geometry.computeVertexNormals();
-    const vx180 = new THREE.Vector3(1, 0, 0);
-    const qx180 = new THREE.Quaternion();
-    qx180.setFromAxisAngle(vx180, 3.1415927);
-    geometry.applyQuaternion(qx180);
-
-    const m_colors = ['red', 'blue', 'yellow', 'green']
-    for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
-      const material = new THREE.MeshStandardMaterial({ color: m_colors[ii], flatShading: true, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.scale.multiplyScalar(0.001 * 0.01);
-
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.onBeforeRender = function () {
-        // params['side_cams']['cams'][ii].
-        this.position.copy(params['side_cams']['cams'][ii].position);
-        this.quaternion.copy(params['side_cams']['cams'][ii].quaternion);
-      };
-      // m.parent = params['side_cams']['cams'][ii];
-      // .attach(m);
-      params.scenes['env']['room'].add(mesh);
-    }
-    scene.add(mesh);
-
-  });
+  // load camera ply
+  util.loadAndAttach('./data/out50cm.ply', params, tracking_ref, params.scenes['env']['room']);
 
   // setup room
   let geometrycc = new THREE.BoxGeometry(1, 1, 1);
@@ -279,9 +273,10 @@ function init() {
   const light2 = new THREE.DirectionalLight(0xffffff);
   light2.position.set(0, 1, 1);
   scene.add(light2);
-  params.scenes['env']['room2'] = scene;
+  // params.scenes['env']['room2'] = scene;
   params.scenes['env']['real'] = util.createRealScene();
   params.scenes['env']['sphere'] = util.createSphere();
+  util.loadSpotLight(params.scenes['env']['sphere'], tracking_ref, params, './data/outline50.ply');
   sceneSizeChanger();
 
   // add renderer
@@ -320,6 +315,10 @@ function init() {
   scene_size_param.add(params.scenes['room_size'], 'height', 1.5, 7.0, 0.1).name("height(m)").onChange(sceneSizeChanger);
   scene_size_param.add(params.scenes['room_size'], 'depth', 1.5, 7.0, 0.1).name("depth(m)").onChange(sceneSizeChanger);
   scene_param.open();
+  const sphere_param = scene_param.addFolder('sphere radius');
+  sphere_param.add(params.scenes, 'sphere_radius', 0.1, 2.0, 0.05).name("sphere_radius(m)").onChange(sceneSizeChanger);
+  sphere_param.open();
+  sphere_param.hide();
   const eye_param = gui.addFolder('Eyes');
   eye_param.add(params.eyes, 'IPD(m)', 0.05, 0.075, 0.001).onChange(eyeChanger).listen();
   eye_param.add(params.eyes, 'fov', 80.0, 100.0, 0.5).name("V fov(deg)").onChange(eyeChanger);
@@ -407,6 +406,13 @@ function render() {
   // updateSize();
   // updateTrackingRef();
   tracking_ref.updateMatrixWorld();
+
+  if (params.scenes['current'] === 'sphere') {
+    for (let ii = 0; ii < params['side_cams']['spotlightUpdate'].length; ++ii) {
+      params['side_cams']['spotlightUpdate'][ii]();
+    }
+  }
+
   if (params["current_main_view"] === "eye") {
     for (let ii = 0; ii < params['eyes']['cams'].length; ++ii) {
 

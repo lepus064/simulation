@@ -40,91 +40,40 @@ function createColorRoom() {
   });
   const cubecc = new THREE.Mesh(geometrycc, materialcc);
   scene.add(cubecc);
-  const light = new THREE.AmbientLight( 0x404040 ); // soft white light
-  scene.add( light);
+  const light = new THREE.AmbientLight(0x404040); // soft white light
+  scene.add(light);
   return scene;
 }
 
-function createSphere(){
+function createSphere() {
 
   const scene = new THREE.Scene();
-  const geometry = new THREE.SphereGeometry( 0.3, 32, 32 );
-  const material = new THREE.MeshStandardMaterial( {color: 0xffff00, side: THREE.BackSide} );
-  const sphere = new THREE.Mesh( geometry, material );
+  const geometry = new THREE.SphereGeometry(1.0, 32, 32);
+  const color = new THREE.Color("white");
+  const material = new THREE.MeshStandardMaterial({ color: color, side: THREE.BackSide });
+  const sphere = new THREE.Mesh(geometry, material);
   sphere.receiveShadow = true; //default
   sphere.castShadow = true; //default is false
-  scene.add( sphere );
-  
-  const sphereGeometry = new THREE.SphereGeometry( 0.1, 32, 32 );
-  const sphereMaterial = new THREE.MeshStandardMaterial( { color: 0xff0000 } );
-  const sphere2 = new THREE.Mesh( sphereGeometry, sphereMaterial );
-  sphere2.castShadow = true; //default is false
-  sphere2.receiveShadow = true; //default
-  sphere2.position.z = -0.3;
+  scene.add(sphere);
+
   // scene.add(sphere2);
 
-  const light = new THREE.AmbientLight( 0x404040 ); // soft white light
-  scene.add( light);
-  const wireframe = new THREE.WireframeGeometry( geometry );
+  const light = new THREE.AmbientLight(0x404040); // soft white light
+  light.intensity = 0.5;
+  scene.add(light);
+  const wireframe = new THREE.WireframeGeometry(geometry);
 
-  const line = new THREE.LineSegments( wireframe );
+  const line = new THREE.LineSegments(wireframe);
   line.material.depthTest = false;
   line.material.opacity = 0.25;
   line.material.transparent = true;
   // scene.add(line);
 
-  const target = new THREE.Object3D();
-  target.position.z = -1;
-  scene.add(target);
 
-  const spotLight = new THREE.SpotLight( 'red' );
-  spotLight.position.set( 0, 0, 0 );
-  spotLight.decay = 0;
-  
-  spotLight.castShadow = true;
-  spotLight.angle = 151.0/360.0* Math.PI;
-  
-  spotLight.shadow.mapSize.width = 1024;
-  spotLight.shadow.mapSize.height = 1024;
-  
-  spotLight.shadow.camera.near = 0.0005;
-  spotLight.shadow.camera.far = 2;
-  spotLight.shadow.camera.fov = 151;
-  spotLight.shadow.camera.lookAt(target.position);
-  spotLight.shadow.focus = 1;
-  spotLight.distance = 1;
-
-  spotLight.target = target;
-  
-  scene.add( spotLight );
-
-  const loader = new PLYLoader();
-  loader.load('./data/outline50.ply', function (geometry) {
-
-    geometry.computeVertexNormals();
-    const vx180 = new THREE.Vector3(1, 0, 0);
-    const qx180 = new THREE.Quaternion();
-    qx180.setFromAxisAngle(vx180, 3.1415927);
-    geometry.applyQuaternion(qx180);
-
-    const m_colors = ['red', 'blue', 'yellow', 'green']
-    const material = new THREE.MeshStandardMaterial({ color: m_colors[0], flatShading: true, side: THREE.DoubleSide });
-    const mesh = new THREE.Mesh(geometry, material);
-    mesh.scale.multiplyScalar(0.00001);
-    // mesh.position.z = -0.01;
-
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    // m.parent = params['side_cams']['cams'][ii];
-    // .attach(m);
-    scene.add(mesh);
-
-  });
-
-  const lightHelper = new THREE.SpotLightHelper( spotLight );
-  scene.add( lightHelper );
-  const shadowCameraHelper = new THREE.CameraHelper( spotLight.shadow.camera );
-  scene.add( shadowCameraHelper );
+  // const lightHelper = new THREE.SpotLightHelper( spotLight );
+  // scene.add( lightHelper );
+  // const shadowCameraHelper = new THREE.CameraHelper( spotLight.shadow.camera );
+  // scene.add( shadowCameraHelper );
 
   return scene;
 }
@@ -191,9 +140,128 @@ function createRealScene() {
   return scene;
 }
 
+function loadAndAttach(ply_name, params, tracking_ref, scene) {
+  const loader = new PLYLoader();
+  loader.load(ply_name, function (geometry) {
+
+    geometry.computeVertexNormals();
+    const vx180 = new THREE.Vector3(1, 0, 0);
+    const qx180 = new THREE.Quaternion();
+    qx180.setFromAxisAngle(vx180, 3.1415927);
+    geometry.applyQuaternion(qx180);
+
+    const m_colors = ['red', 'blue', 'yellow', 'green']
+    for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+      const material = new THREE.MeshStandardMaterial({ color: m_colors[ii], flatShading: true, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.scale.multiplyScalar(0.001 * 0.01);
+
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.onBeforeRender = function () {
+
+        this.quaternion.copy(params['side_cams']['cams'][ii].quaternion);
+        this.position.copy(params['side_cams']['cams'][ii].position);
+        const m = new THREE.Matrix4();
+        m.makeRotationFromQuaternion(tracking_ref.quaternion);
+        m.setPosition(tracking_ref.position);
+        this.applyMatrix4(m);
+
+      };
+      scene.add(mesh);
+    }
+
+  });
+}
+
+function loadSpotLight(scene, tracking_ref, params, mask_path) {
+
+  const loader = new PLYLoader();
+  loader.load(mask_path, function (geometry) {
+
+    geometry.computeVertexNormals();
+    const vx180 = new THREE.Vector3(1, 0, 0);
+    const qx180 = new THREE.Quaternion();
+    qx180.setFromAxisAngle(vx180, 3.1415927);
+    geometry.applyQuaternion(qx180);
+
+    params['side_cams']['spotlightUpdate'] = [];
+    // params['side_cams']['spotlights'] = [];
+    // params['side_cams']['spotlightsTar'] = [];
+    // params['side_cams']['spotlightsMesh'] = [];
+    const m_colors = ['red', 'blue', 'yellow', 'green']
+    for (let ii = 0; ii < 4; ++ii) {
+      const color = new THREE.Color( m_colors[ii] );
+      const spotLight = new THREE.SpotLight(color);
+      // spotLight.position.set(0, 0, 0);
+      spotLight.decay = 0;
+
+      spotLight.castShadow = true;
+      spotLight.angle = 151.0 / 360.0 * Math.PI;
+      spotLight.intensity = 0.25;
+
+      spotLight.shadow.mapSize.width = 512;
+      spotLight.shadow.mapSize.height = 512;
+
+      spotLight.shadow.camera.near = 0.0005;
+      spotLight.shadow.camera.far = 2;
+      spotLight.shadow.camera.fov = 151;
+      spotLight.shadow.focus = 1;
+      spotLight.distance = 1;
+
+      scene.add(spotLight);
+
+      const target = new THREE.Object3D();
+      spotLight.shadow.camera.lookAt(target.position);
+      spotLight.target = target;
+      scene.add(target);
+
+
+      const material = new THREE.MeshStandardMaterial({ color: color, flatShading: true, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.scale.multiplyScalar(0.00001);
+      mesh.castShadow = true;
+      
+      scene.add(mesh);
+      // spotLight.position.set(0, 0.1, 0);
+      const updateFunc = function(){
+        spotLight.quaternion.copy(params['side_cams']['cams'][ii].quaternion);
+        spotLight.position.copy(params['side_cams']['cams'][ii].position);
+        const m = new THREE.Matrix4();
+        m.makeRotationFromQuaternion(tracking_ref.quaternion);
+        m.setPosition(tracking_ref.position);
+        spotLight.applyMatrix4(m);
+
+        mesh.quaternion.copy(spotLight.quaternion);
+        mesh.position.copy(spotLight.position);
+
+        target.quaternion.identity();
+        target.position.set(0, 0, -1);
+        const m1 = new THREE.Matrix4();
+        m1.makeRotationFromQuaternion(spotLight.quaternion);
+        m1.setPosition(spotLight.position);
+        target.applyMatrix4(m1);
+
+      }
+      params['side_cams']['spotlightUpdate'].push(updateFunc);
+      // break;
+    }
+    // const material = new THREE.MeshStandardMaterial({ color: m_colors[0], flatShading: true, side: THREE.DoubleSide });
+    // const mesh = new THREE.Mesh(geometry, material);
+    // mesh.scale.multiplyScalar(0.00001);
+
+    // mesh.castShadow = true;
+    // m.parent = params['side_cams']['cams'][ii];
+    // .attach(m);
+
+  });
+}
+
 export {
   loadParams,
   createColorRoom,
   createRealScene,
-  createSphere
+  createSphere,
+  loadAndAttach,
+  loadSpotLight
 }
