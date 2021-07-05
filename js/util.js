@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.skypack.dev/three@0.129.0';
+import { PLYLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/PLYLoader.js';
 
 function loadParams(camera_data, params) {
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
@@ -40,7 +41,91 @@ function createColorRoom() {
   const cubecc = new THREE.Mesh(geometrycc, materialcc);
   scene.add(cubecc);
   const light = new THREE.AmbientLight( 0x404040 ); // soft white light
-  scene.add( light, 1.5 );
+  scene.add( light);
+  return scene;
+}
+
+function createSphere(){
+
+  const scene = new THREE.Scene();
+  const geometry = new THREE.SphereGeometry( 0.3, 32, 32 );
+  const material = new THREE.MeshStandardMaterial( {color: 0xffff00, side: THREE.BackSide} );
+  const sphere = new THREE.Mesh( geometry, material );
+  sphere.receiveShadow = true; //default
+  sphere.castShadow = true; //default is false
+  scene.add( sphere );
+  
+  const sphereGeometry = new THREE.SphereGeometry( 0.1, 32, 32 );
+  const sphereMaterial = new THREE.MeshStandardMaterial( { color: 0xff0000 } );
+  const sphere2 = new THREE.Mesh( sphereGeometry, sphereMaterial );
+  sphere2.castShadow = true; //default is false
+  sphere2.receiveShadow = true; //default
+  sphere2.position.z = -0.3;
+  // scene.add(sphere2);
+
+  const light = new THREE.AmbientLight( 0x404040 ); // soft white light
+  scene.add( light);
+  const wireframe = new THREE.WireframeGeometry( geometry );
+
+  const line = new THREE.LineSegments( wireframe );
+  line.material.depthTest = false;
+  line.material.opacity = 0.25;
+  line.material.transparent = true;
+  // scene.add(line);
+
+  const target = new THREE.Object3D();
+  target.position.z = -1;
+  scene.add(target);
+
+  const spotLight = new THREE.SpotLight( 'red' );
+  spotLight.position.set( 0, 0, 0 );
+  spotLight.decay = 0;
+  
+  spotLight.castShadow = true;
+  spotLight.angle = 151.0/360.0* Math.PI;
+  
+  spotLight.shadow.mapSize.width = 1024;
+  spotLight.shadow.mapSize.height = 1024;
+  
+  spotLight.shadow.camera.near = 0.0005;
+  spotLight.shadow.camera.far = 2;
+  spotLight.shadow.camera.fov = 151;
+  spotLight.shadow.camera.lookAt(target.position);
+  spotLight.shadow.focus = 1;
+  spotLight.distance = 1;
+
+  spotLight.target = target;
+  
+  scene.add( spotLight );
+
+  const loader = new PLYLoader();
+  loader.load('./data/outline50.ply', function (geometry) {
+
+    geometry.computeVertexNormals();
+    const vx180 = new THREE.Vector3(1, 0, 0);
+    const qx180 = new THREE.Quaternion();
+    qx180.setFromAxisAngle(vx180, 3.1415927);
+    geometry.applyQuaternion(qx180);
+
+    const m_colors = ['red', 'blue', 'yellow', 'green']
+    const material = new THREE.MeshStandardMaterial({ color: m_colors[0], flatShading: true, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.scale.multiplyScalar(0.00001);
+    // mesh.position.z = -0.01;
+
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    // m.parent = params['side_cams']['cams'][ii];
+    // .attach(m);
+    scene.add(mesh);
+
+  });
+
+  const lightHelper = new THREE.SpotLightHelper( spotLight );
+  scene.add( lightHelper );
+  const shadowCameraHelper = new THREE.CameraHelper( spotLight.shadow.camera );
+  scene.add( shadowCameraHelper );
+
   return scene;
 }
 
@@ -109,5 +194,6 @@ function createRealScene() {
 export {
   loadParams,
   createColorRoom,
-  createRealScene
+  createRealScene,
+  createSphere
 }

@@ -77,7 +77,7 @@ function init() {
     tracking_ref.attach(camera);
     params['side_cams']['cams'].push(camera);
   }
-  params['global_cam'] = new THREE.PerspectiveCamera(90, EYE_RATIO * 2, 0.001, 5);
+  params['global_cam'] = new THREE.PerspectiveCamera(90, EYE_RATIO * 2, 0.001, 20);
   params['global_cam'].position.set(0, 0, -0.2);
   params['global_cam'].lookAt(0, 0, 0);
   tracking_ref.attach(params['global_cam']);
@@ -110,7 +110,7 @@ function init() {
     for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
       params['side_cams']['composers'][ii].passes[0] = new RenderPass(params.scenes['env'][params.scenes['current']], params['side_cams']['cams'][ii]);
     }
-    if (params.scenes['current'] === 'real') {
+    if (params.scenes['current'] != 'room') {
       scene_size_param.hide();
     }
     else {
@@ -142,7 +142,7 @@ function init() {
       controls.screenSpacePanning = false;
 
       controls.minDistance = 0.1;
-      controls.maxDistance = 2;
+      controls.maxDistance = 5;
 
       controls.maxPolarAngle = Math.PI;
       params["showInfo"] = false;
@@ -213,6 +213,7 @@ function init() {
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       mesh.onBeforeRender = function () {
+        // params['side_cams']['cams'][ii].
         this.position.copy(params['side_cams']['cams'][ii].position);
         this.quaternion.copy(params['side_cams']['cams'][ii].quaternion);
       };
@@ -280,10 +281,12 @@ function init() {
   scene.add(light2);
   params.scenes['env']['room2'] = scene;
   params.scenes['env']['real'] = util.createRealScene();
+  params.scenes['env']['sphere'] = util.createSphere();
   sceneSizeChanger();
 
   // add renderer
   renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.shadowMap.enabled = true;
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(container.offsetWidth, window.innerHeight);
   renderer.autoClear = false;
@@ -308,9 +311,9 @@ function init() {
   const gui = new GUI();
   gui.width = 350;
   console.log(gui.width);
-  gui.add(params, "showInfo").name("show info").onChange(showInfoChanger).listen();
-  gui.add(params, "current_main_view", Object.keys(params["main_view"])).onChange(mainViewChanger);;
   const scene_param = gui.addFolder('Scenes');
+  scene_param.add(params, "showInfo").name("show info").onChange(showInfoChanger).listen();
+  scene_param.add(params, "current_main_view", Object.keys(params["main_view"])).onChange(mainViewChanger);;
   scene_param.add(params.scenes, 'current', Object.keys(params.scenes['env'])).onChange(sceneEnvChanger);;
   const scene_size_param = scene_param.addFolder('room size');
   scene_size_param.add(params.scenes['room_size'], 'width', 1.5, 7.0, 0.1).name("width(m)").onChange(sceneSizeChanger);
@@ -361,6 +364,7 @@ function init() {
 
   // make sure everything updated
   sideCamChanger();
+  mainViewChanger();
   // document.addEventListener('mousemove', onDocumentMouseMove);
 
 }
