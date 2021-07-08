@@ -4,18 +4,18 @@ import { RenderPass } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/p
 import { ShaderPass } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/postprocessing/ShaderPass.js';
 import { FlyControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/FlyControls.js';
 import { OrbitControls } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/controls/OrbitControls.js';
-import { PLYLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/PLYLoader.js';
 import { GUI } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/libs/dat.gui.module.js';
 import { FisheyeShader } from './Fisheye_kb.js'
 import * as util from './util.js'
 
-let renderer;
-let controls, o_controls;
-
-const clock = new THREE.Clock();
-
 const fs = require('fs');
 const path = require('path');
+const { ipcRenderer } = require('electron')
+
+let renderer;
+let controls;
+
+const clock = new THREE.Clock();
 
 // load json
 let rawdata = fs.readFileSync(path.resolve(__dirname, 'data/camera.json'));
@@ -23,22 +23,28 @@ let camera_data = JSON.parse(rawdata);
 rawdata = fs.readFileSync(path.resolve(__dirname, 'data/params.json'));
 let params = JSON.parse(rawdata);
 params['side_cams']['ratio'] = params['side_cams']['ratio_w'] / params['side_cams']['ratio_h'];
+
+
 params['saveExtrinsic'] = function () {
   console.log("save");
-  const outfile = {}
+  const outfile = {"cv":{}, "gl":{}}
+  let T_cam0_track;
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
     const m = new THREE.Matrix4();
+    util.cv2gl(m);
     m.makeRotationFromQuaternion(params['side_cams']['rot2track'][ii]);
     m.setPosition(params['side_cams']['trans2track'][ii].clone().multiplyScalar(1000.0));
-    m.transpose();
-    outfile["T_track_cam" + ii] = m.elements;
+    outfile["gl"]["T_track_cam" + ii] = m.clone().transpose().elements;
+    if (ii === 0) {
+      T_cam0_track = m.clone().invert();
+      outfile["cv"]["T_cam0_cam" + ii] = (new THREE.Matrix4()).elements;
+    }
+    else {
+      outfile["cv"]["T_cam0_cam" + ii] = util.cv2gl(m.clone().premultiply(T_cam0_track)).transpose().elements;
+    }
   }
+  ipcRenderer.invoke('save file', outfile);
 
-  try {
-    fs.writeFileSync('cam_extrinsic.json', JSON.stringify(outfile, null, 2), 'utf-8');
-    alert('Save to cam_extrinsic.json');
-  }
-  catch (e) { alert('Failed to save the file !'); }
 }
 
 // create tracking ref
@@ -345,7 +351,7 @@ function init() {
   side_general_param.add(params.side_cams, 'h_fov', 120.0, 170.0, 0.5).name("H fov(deg)").onChange(sideCamChanger);
   side_general_param.add(params.side_cams, "symmetry01").name("symmetry cam0 cam1").onChange(sideCamChanger);
   side_general_param.add(params.side_cams, "symmetry23").name("symmetry cam2 cam3").onChange(sideCamChanger);
-  side_general_param.add(params, "saveExtrinsic");
+  side_general_param.add(params, "saveExtrinsic").name("save extrinsic to json");
   side_general_param.open();
   const cam_params = []
   for (let cam = 0; cam < 4; cam++) {

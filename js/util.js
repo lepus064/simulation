@@ -1,4 +1,5 @@
 import * as THREE from 'https://cdn.skypack.dev/three@0.129.0';
+// import * as THREE from 'three';
 import { PLYLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/PLYLoader.js';
 
 function loadParams(camera_data, params) {
@@ -257,11 +258,22 @@ function loadSpotLight(scene, tracking_ref, params, mask_path) {
   });
 }
 
+function cv2gl(m){
+  const m_cv2gl = new THREE.Matrix4();
+  m_cv2gl.set( 1,  0,  0,  0,
+               0, -1,  0,  0,
+               0,  0, -1,  0,
+               0,  0,  0,  1 );
+  
+  return m.clone().premultiply(m_cv2gl).multiply(m_cv2gl);
+}
+
 export {
   loadParams,
   createColorRoom,
   createRealScene,
   createSphere,
   loadAndAttach,
-  loadSpotLight
+  loadSpotLight,
+  cv2gl
 }

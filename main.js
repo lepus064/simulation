@@ -1,4 +1,30 @@
 const { app, BrowserWindow } = require('electron');
+const { ipcMain } = require('electron')
+
+const { dialog } = require('electron')
+const fs = require('fs');
+
+ipcMain.handle('save file', async (event, arg) => {
+  // let coord = "";
+  // dialog.showMessageBox({ message: "Which coordinate?", type: "question", buttons: ["opencv", "opengl"] }).then(result => {
+  //   if (result.response === 0) {
+  //     console.log("Use OpenCV");
+  //     coord = "cv";
+  //   } else if (result.response === 1) {
+  //     console.log("Use OpenGL");
+  //     coord = "gl";
+  //   }
+  // });
+
+  outputFilePath = dialog.showSaveDialogSync({ title: "save camera extrinsic json", defaultPath: "./cam_extrinsic.json" });
+  try {
+    fs.writeFileSync(outputFilePath, JSON.stringify(arg, null, 2), 'utf-8');
+  }
+  catch (e) {
+    console.log("Save failed.")
+  }
+})
+
 
 let mainWindow;
 
@@ -20,6 +46,7 @@ app.on('ready', function () {
 
   // and load the index.html of the app.
   mainWindow.loadURL('file://' + __dirname + '/index.html');
+  // mainWindow.loadFile('index.html');
 
   // Emitted when the window is closed.
   mainWindow.on('closed', function () {
