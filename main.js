@@ -1,6 +1,4 @@
 const { app, BrowserWindow } = require('electron');
-// var THREE = require('three');
-// const EffectComposer = require('three-effectcomposer')(THREE);
 
 let mainWindow;
 

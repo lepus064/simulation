@@ -6,6 +6,8 @@
     "start": "electron ."
   },
   "dependencies": {
-    "electron": "^13.1.4"
+    "electron": "^13.1.4",
+    "electron-prompt": "^1.6.2",
+    "smalltalk": "^4.0.7"
   }
 }

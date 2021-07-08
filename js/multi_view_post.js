@@ -23,6 +23,23 @@ let camera_data = JSON.parse(rawdata);
 rawdata = fs.readFileSync(path.resolve(__dirname, 'data/params.json'));
 let params = JSON.parse(rawdata);
 params['side_cams']['ratio'] = params['side_cams']['ratio_w'] / params['side_cams']['ratio_h'];
+params['saveExtrinsic'] = function () {
+  console.log("save");
+  const outfile = {}
+  for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+    const m = new THREE.Matrix4();
+    m.makeRotationFromQuaternion(params['side_cams']['rot2track'][ii]);
+    m.setPosition(params['side_cams']['trans2track'][ii].clone().multiplyScalar(1000.0));
+    m.transpose();
+    outfile["T_track_cam" + ii] = m.elements;
+  }
+
+  try {
+    fs.writeFileSync('cam_extrinsic.json', JSON.stringify(outfile, null, 2), 'utf-8');
+    alert('Save to cam_extrinsic.json');
+  }
+  catch (e) { alert('Failed to save the file !'); }
+}
 
 // create tracking ref
 const tracking_ref = new THREE.Object3D();
@@ -31,7 +48,7 @@ tracking_ref.matrixWorld.identity();
 let windowWidth, windowHeight, CAM_W, CAM_H, EYE_W, EYE_H;
 
 function getVerticalFov(h_fov, ratio) {
-  return Math.atan(Math.tan(h_fov / 360.0 * 3.1415927) / ratio) * 360.0 / 3.1415927;
+  return Math.atan(Math.tan(h_fov / 360.0 * Math.PI) / ratio) * 360.0 / Math.PI;
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -124,7 +141,7 @@ function init() {
     else if (params.scenes['current'] == 'sphere') {
       sphere_param.show();
       scene_size_param.hide();
-    if (params["current_main_view"] === "global") {
+      if (params["current_main_view"] === "global") {
         params['global_cam'].position.set(0, 0, 0.5);
       }
     }
@@ -319,7 +336,7 @@ function init() {
   sphere_param.add(params.scenes, 'sphere_radius', 0.1, 2.0, 0.05).name("sphere_radius(m)").onChange(sceneSizeChanger);
   sphere_param.open();
   sphere_param.hide();
-  const eye_param = gui.addFolder('Eyes');
+  const eye_param = scene_param.addFolder('Eyes');
   eye_param.add(params.eyes, 'IPD(m)', 0.05, 0.075, 0.001).onChange(eyeChanger).listen();
   eye_param.add(params.eyes, 'fov', 80.0, 100.0, 0.5).name("V fov(deg)").onChange(eyeChanger);
   eye_param.open();
@@ -328,6 +345,7 @@ function init() {
   side_general_param.add(params.side_cams, 'h_fov', 120.0, 170.0, 0.5).name("H fov(deg)").onChange(sideCamChanger);
   side_general_param.add(params.side_cams, "symmetry01").name("symmetry cam0 cam1").onChange(sideCamChanger);
   side_general_param.add(params.side_cams, "symmetry23").name("symmetry cam2 cam3").onChange(sideCamChanger);
+  side_general_param.add(params, "saveExtrinsic");
   side_general_param.open();
   const cam_params = []
   for (let cam = 0; cam < 4; cam++) {

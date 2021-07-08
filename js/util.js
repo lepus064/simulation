@@ -147,7 +147,7 @@ function loadAndAttach(ply_name, params, tracking_ref, scene) {
     geometry.computeVertexNormals();
     const vx180 = new THREE.Vector3(1, 0, 0);
     const qx180 = new THREE.Quaternion();
-    qx180.setFromAxisAngle(vx180, 3.1415927);
+    qx180.setFromAxisAngle(vx180, Math.PI);
     geometry.applyQuaternion(qx180);
 
     const m_colors = ['red', 'blue', 'yellow', 'green']
@@ -182,7 +182,7 @@ function loadSpotLight(scene, tracking_ref, params, mask_path) {
     geometry.computeVertexNormals();
     const vx180 = new THREE.Vector3(1, 0, 0);
     const qx180 = new THREE.Quaternion();
-    qx180.setFromAxisAngle(vx180, 3.1415927);
+    qx180.setFromAxisAngle(vx180, Math.PI);
     geometry.applyQuaternion(qx180);
 
     params['side_cams']['spotlightUpdate'] = [];
