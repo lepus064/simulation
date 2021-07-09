@@ -5,16 +5,6 @@ const { dialog } = require('electron')
 const fs = require('fs');
 
 ipcMain.handle('save file', async (event, arg) => {
-  // let coord = "";
-  // dialog.showMessageBox({ message: "Which coordinate?", type: "question", buttons: ["opencv", "opengl"] }).then(result => {
-  //   if (result.response === 0) {
-  //     console.log("Use OpenCV");
-  //     coord = "cv";
-  //   } else if (result.response === 1) {
-  //     console.log("Use OpenGL");
-  //     coord = "gl";
-  //   }
-  // });
 
   outputFilePath = dialog.showSaveDialogSync({ title: "save camera extrinsic json", defaultPath: "./cam_extrinsic.json" });
   try {
@@ -25,6 +15,21 @@ ipcMain.handle('save file', async (event, arg) => {
   }
 })
 
+ipcMain.handle('load file', async (event, arg) => {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile', 'openDirectory'],
+    filters: [
+      { name: 'json', extensions: ['json'] },
+    ],
+  });
+
+  if (result.canceled) return { canceled: true };
+  else {
+    const filePath = result.filePaths[0];
+    return filePath;
+  }
+
+})
 
 let mainWindow;
 

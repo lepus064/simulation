@@ -4,9 +4,21 @@ import * as THREE from 'three';
 import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 
 function loadParams(camera_data, params) {
+  if(params['side_cams']['rot2track'].length === 0){
+    for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+      const quaternion = new THREE.Quaternion();
+      params['side_cams']['rot2track'].push(quaternion);
+    }
+  }
+  if(params['side_cams']['trans2track'].length === 0){
+    for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
+      const translation = new THREE.Vector3();
+      params['side_cams']['trans2track'].push(translation);
+    }
+  }
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
     const T_track_cam = new THREE.Matrix4();
-    T_track_cam.fromArray(camera_data["cam" + ii]);
+    T_track_cam.fromArray(camera_data["gl"]["T_track_cam" + ii]);
     T_track_cam.transpose();
     T_track_cam.elements[12] /= 1000.0;
     T_track_cam.elements[13] /= 1000.0;
@@ -16,8 +28,8 @@ function loadParams(camera_data, params) {
     const translation = new THREE.Vector3();
     translation.setFromMatrixPosition(T_track_cam);
     quaternion.setFromRotationMatrix(T_track_cam);
-    params['side_cams']['rot2track'].push(quaternion);
-    params['side_cams']['trans2track'].push(translation);
+    params['side_cams']['rot2track'][ii].copy(quaternion);
+    params['side_cams']['trans2track'][ii].copy(translation);
   }
 }
 

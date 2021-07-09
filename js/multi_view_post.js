@@ -37,7 +37,7 @@ params['side_cams']['ratio'] = params['side_cams']['ratio_w'] / params['side_cam
 
 params['saveExtrinsic'] = function () {
   console.log("save");
-  const outfile = {"cv":{}, "gl":{}}
+  const outfile = { "cv": {}, "gl": {} }
   let T_cam0_track;
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
     const m = new THREE.Matrix4();
@@ -54,8 +54,8 @@ params['saveExtrinsic'] = function () {
     }
   }
   ipcRenderer.invoke('save file', outfile);
-
 }
+
 
 // create tracking ref
 const tracking_ref = new THREE.Object3D();
@@ -245,6 +245,18 @@ function init() {
     }
   }
 
+  params['loadExtrinsic'] = function () {
+    console.log("load");
+    ipcRenderer.invoke('load file', '')
+      .then(file_path => {
+        const new_rawdata = fs.readFileSync(file_path);
+        const new_camera_data = JSON.parse(new_rawdata);
+        console.log(new_camera_data);
+        util.loadParams(new_camera_data, params);
+        sideCamChanger();
+      })
+  }
+
   params.scenes['env']['room'] = util.createColorRoom();
 
   const scene = new THREE.Scene();
@@ -326,12 +338,6 @@ function init() {
     effect1.uniforms['h_fov'].value = params['side_cams']['h_fov'];
     composer.addPass(effect1);
     params['side_cams']['composers'].push(composer);
-    // var glitchPass = new GlitchPass();
-    // composer.addPass( glitchPass );
-    // if(ii === 0){
-    //   const helper = new THREE.CameraHelper( params['side_cams']['cams'][ii] );
-    //   scene.add( helper );
-    // }
   }
   // current_scene = scene;
 
@@ -361,6 +367,7 @@ function init() {
   side_general_param.add(params.side_cams, 'h_fov', 120.0, 170.0, 0.5).name("H fov(deg)").onChange(sideCamChanger);
   side_general_param.add(params.side_cams, "symmetry01").name("symmetry cam0 cam1").onChange(sideCamChanger);
   side_general_param.add(params.side_cams, "symmetry23").name("symmetry cam2 cam3").onChange(sideCamChanger);
+  side_general_param.add(params, "loadExtrinsic").name("load json to extrinsic");
   side_general_param.add(params, "saveExtrinsic").name("save extrinsic to json");
   side_general_param.open();
   const cam_params = []
