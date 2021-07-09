@@ -1,6 +1,7 @@
-import * as THREE from 'https://cdn.skypack.dev/three@0.129.0';
-// import * as THREE from 'three';
-import { PLYLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/PLYLoader.js';
+// import * as THREE from 'https://cdn.skypack.dev/three@0.129.0';
+// import { PLYLoader } from 'https://cdn.skypack.dev/three@0.129.0/examples/jsm/loaders/PLYLoader.js';
+import * as THREE from 'three';
+import { PLYLoader } from 'three/examples/jsm/loaders/PLYLoader.js';
 
 function loadParams(camera_data, params) {
   for (let ii = 0; ii < params['side_cams']['nums']; ++ii) {
